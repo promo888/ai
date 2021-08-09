@@ -1,0 +1,40 @@
+{
+  "run": [
+    {"exec_id": 1, "object": "preproc", "func": "pctChange1p", "params":["self.inputs_data","close"]},
+    {"exec_id": 2, "object": "preproc", "func": "pctChange1p", "params":["self.inputs_data", "low"]},
+    {"exec_id": 3, "object": "preproc", "func": "pctChange1p", "params":["self.inputs_data", "high"]},
+    {"exec_id": 11, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "close"]},
+    {"exec_id": 12, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "high"]},
+    {"exec_id": 13, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "low"]},
+    {"exec_id": 20, "object": "preproc", "func": "ema", "params":["self.inputs_data", "close", 2]},
+    {"exec_id": 21, "object": "preproc", "func": "ema", "params":["self.inputs_data", "high", 2]},
+    {"exec_id": 22, "object": "preproc", "func": "ema", "params":["self.inputs_data", "low", 2]},
+    {"exec_id": 23, "object": "preproc", "func": "ema", "params":["self.inputs_data", "high", 3]},
+    {"exec_id": 24, "object": "preproc", "func": "ema", "params":["self.inputs_data", "low", 3]},
+    {"exec_id": 25, "object": "preproc", "func": "ema", "params":["self.inputs_data", "close", 3]},
+    {"exec_id": 26, "object": "preproc", "func": "ema", "params":["self.inputs_data", "low", 5]},
+    {"exec_id": 27, "object": "preproc", "func": "ema", "params":["self.inputs_data", "high", 5]},
+    {"exec_id": 28, "object": "preproc", "func": "ema", "params":["self.inputs_data", "close", 5]},
+    {"exec_id": 29, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_2_high"]},
+    {"exec_id": 30, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_2_low"]},
+    {"exec_id": 31, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_2_close"]},
+    {"exec_id": 32, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_3_close"]},
+    {"exec_id": 33, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_3_high"]},
+    {"exec_id": 34, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_3_low"]},
+    {"exec_id": 35, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_5_close"]},
+    {"exec_id": 36, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_5_high"]},
+    {"exec_id": 37, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_5_low"]},
+
+    {"exec_id": 4, "object": "preproc", "func": "ema", "params":["self.inputs_data", "close", 50]},
+    {"exec_id": 5, "object": "preproc", "func": "ema", "params":["self.inputs_data", "close", 100]},
+    {"exec_id": 14, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_50_close"]},
+    {"exec_id": 15, "object": "preproc", "func": "isUp", "params":["self.inputs_data", "ema_100_close"]},
+
+  ],
+  "funcs": [
+    {"object": "preproc", "func": "pctChange1p"},
+  ],
+  "vars" : [
+    {"object": "preproc", "var": "varName", "value": "someValue"},
+  ],
+}
