@@ -40,6 +40,7 @@ class StockPredictor:
 
     def __init__(self, ticker="^GSPC", predict_field="close", shift_n_periods=0,
                  from_index="2018-01-01", to_index="2021-12-31'",
+                 periods_back_test=500, rulePct=0.55,
                  data_dir="data", models_dir="models", charts_dir="charts",
                  explore_score_field="GOOD Ratio",
                  explore_chart_axs=["pctChange_close", "rules_binary_features_sum"],
@@ -56,6 +57,8 @@ class StockPredictor:
         self.targets_data = None #for supervised learning
         self.start_from_index = from_index
         self.end_to_index = to_index
+        self.periods_back_test = periods_back_test
+        self.rulePct = rulePct
         self.look_back = shift_n_periods if shift_n_periods < 0 else 0 #todo forward
         self.look_forward = shift_n_periods if shift_n_periods > 0 else 0
         self.predict_field = predict_field #todo to change along with binary/DL rules
@@ -131,7 +134,8 @@ class StockPredictor:
         cols = " AND ".join([f"{fields[x]} = {values[x]}" for x in range(len(fields))])
         start_from = f" AND id>={start_from_idx}"
         where = f" AND {predict_field_kv.split('=')[0]}={predict_field_kv.split('=')[1]}" if len(predict_field_kv) > 0 else ""
-        return f"{query} {cols} {start_from} {where}"
+        AND = "" #f" AND pctChange_close > 10" if 1 in fields else " AND pctChange_close < -10"
+        return f"{query} {cols} {start_from} {where} {AND}"
 
 
 
@@ -146,7 +150,7 @@ class StockPredictor:
         self.cleanupData()
         self.rangeBinaryFeatures()
         #self.copyPreprocData()
-        self.exploreBinaryFeatures(self.predict_field, self.predict_field_shift_periods)
+        self.exploreBinaryFeatures(self.predict_field, self.predict_field_shift_periods, self.periods_back_test, self.rulePct)
         # self.savePreprocData()
         self.getLastPeriodBinaryRange()
         # self.revertPreprocData()
@@ -280,44 +284,50 @@ class StockPredictor:
             # self.inputs_data["rules"] = {"binary_features_sum", self.inputs_data_binary.sum(axis=1)}
             self.inputs_data["rules_binary_features_sum"] = self.inputs_data_binary.sum(axis=1)
 
+
     def chartBestUpDownRules(self):
         self.inputs_data['date'] = self.inputs_data.index
-        ruleUpDates = sorted(
+        rulesUp = sorted(
             [x for x in self.binary_combs_results if x['direction'] == "UP" and x['predicted_true'] >= 2],
             key=lambda i: (i['predicted_true_pct']), reverse=True)
-        if len(ruleUpDates) > 0:
-            ruleUpDates = [pd.to_datetime(x) for x in ruleUpDates[0]['predicted_trade_dates']]
+        if len(rulesUp) > 0:
+            ruleUpDates = [pd.to_datetime(x) for x in rulesUp[0]['predicted_trade_dates']]
                 # [pd.to_datetime(x, format='%d-%m-%Y').strftime('%Y-%m-%d') for x in
                 #            ruleUpDates[0]['predicted_trade_dates']]
-        ruleUpDfCloses = self.inputs_data.query(f"date in {ruleUpDates}")['close']
+        ruleUpCloses = self.inputs_data.query(f"date in {ruleUpDates}")['close']
+        if len(rulesUp) > 0:
+            print(f"Best Up rule: {rulesUp[0]['ruleDesc']}")
 
-        ruleDownDates = sorted(
+        rulesDown = sorted(
             [x for x in self.binary_combs_results if x['direction'] == "DOWN" and x['predicted_true'] >= 2],
             key=lambda i: (i['predicted_true_pct']), reverse=True)
-        if len(ruleDownDates) > 0:
+        if len(rulesDown) > 0:
             # ruleDownDates = [pd.to_datetime(x, format='%d-%m-%Y').strftime('%Y-%m-%d') for x in
             #                  ruleDownDates[0]['predicted_trade_dates']]
-            ruleDownDates =  [pd.to_datetime(x) for x in ruleDownDates[0]['predicted_trade_dates']]
-        ruleDownDfCloses = self.inputs_data.query(f"date in {ruleDownDates}")['close']
+            ruleDownDates =  [pd.to_datetime(x) for x in rulesDown[0]['predicted_trade_dates']]
+        ruleDownCloses = self.inputs_data.query(f"date in {ruleDownDates}")['close']
+        if len(rulesDown) > 0:
+            print(f"Best Down rule: {rulesDown[0]['ruleDesc']}")
+
 
         plt.plot([pd.to_datetime(x, infer_datetime_format=True) for x in self.inputs_data['date']],
                  self.inputs_data['close'], marker='o', markerfacecolor='blue')
 
-        if len(ruleUpDfCloses) > 0:
-            plt.plot(pd.to_datetime(ruleUpDates, infer_datetime_format=True), ruleUpDfCloses, marker='^',
+        if len(ruleUpCloses) > 0:
+            plt.plot(pd.to_datetime(ruleUpDates, infer_datetime_format=True), ruleUpCloses, marker='^',
                      markerfacecolor='green')
-        if len(ruleDownDfCloses) > 0:
-            plt.plot(pd.to_datetime(ruleDownDates, infer_datetime_format=True), ruleDownDfCloses, marker='v',
+        if len(ruleDownCloses) > 0:
+            plt.plot(pd.to_datetime(ruleDownDates, infer_datetime_format=True), ruleDownCloses, marker='v',
                      markerfacecolor='red')
 
         plt.show()
 
-    def exploreBinaryFeatures(self, predictField, shiftPeriods):
+    def exploreBinaryFeatures(self, predictField, shiftPeriods, explore_periods_back=5, rule_pct=0.55):
         #preprocBinaryFeatures / init
         #start = timer()
         #self.shiftDfData(predictField, shiftPeriods)
         last_date = self.inputs_data[-1:].index[0]
-        dfTarget = self.inputs_data_binary.copy()
+        dfTarget = self.inputs_data #self.inputs_data_binary   #.copy()
         new_predict_field = f"predict_{predictField}"
         dfTarget[new_predict_field] = dfTarget[predictField]
         dfTarget = self.shiftDfData(new_predict_field, shiftPeriods, dfTarget, inplace=True)
@@ -334,9 +344,9 @@ class StockPredictor:
         start = timer()
         #dfFeatures.drop(predictField, axis='columns', inplace=True)
         total_bin_features = len(dfFeatures) #todo chunks if rules_amount > 1000
-        max_indicators = 5 #7 #10 ##total_bin_features - 1 if total_bin_features <= 11 else 11 #todo upto 30 - bigCombsArray?
-        periods = 500 #50 #200
-        rule_pct = 0.55 #0.6 #0.8 #0.5 0.75
+        max_indicators = 3 #5 #7 #10 ##total_bin_features - 1 if total_bin_features <= 11 else 11 #todo upto 30 - bigCombsArray?
+        periods = explore_periods_back  #500 #50 #200
+        #rule_pct = 0.55 #0.6 #0.8 #0.5 0.75
         total_records = dfTarget.shape[0]
         assert periods < total_records
         totalUp = dfTarget.iloc[-periods:].query(f"{new_predict_field}==1").shape[0]
@@ -353,6 +363,8 @@ class StockPredictor:
                 rule_UP_found_all = self.db.execute(
                     self.queryBinSqlDb('bin_rules_stats', list(comb), [1] * len(comb), "",
                                        total_records - periods)).fetchall()
+                # if len(rule_UP_found_all) > 238: # debug
+                #     print('debug')
                 predicted_UP_true = None
                 rulesPredictedUp = 0
                 if len(rule_UP_found_all) > 0:
@@ -458,9 +470,12 @@ class StockPredictor:
 
         #print(f"calc took {timer()-start} secs")
         #exit(1) #testPerf
-        print(f"\n\nBIN_DF ticker: {self.ticker}, RulePct predict {rule_pct*100}%, for: {periods} periods back, took: {timer()-start} secs, {len(self.binary_combs_results)} \
-                                    valid rules found,\n{tabulate(self.binary_combs_results)}")
+
+        self.binary_combs_results = sorted(self.binary_combs_results, key=lambda x: x["predicted_true_pct"], reverse=False)  # Sort best rules DESC
+        print(f"\n\nBIN_DF ticker: {self.ticker}, RulePct predict {rule_pct*100}%, for: {periods} periods back, took: {timer()-start} secs,\
+                {len(self.binary_combs_results)} valid rules found,\n{tabulate(self.binary_combs_results)}")
         print(f"calc took {timer() - start} secs")
+
 
         # self.inputs_data['date'] = self.inputs_data.index
         # # longsDfDates = [y for y in self.inputs_data['date'] if
@@ -783,7 +798,7 @@ class StockPredictor:
 
 
 
-    def shiftData(self, shift_field="close", shift_period=0):
+    def shiftAndSplitData(self, shift_field="close", shift_period=0):
         if shift_period != 0:
             self.inputs_data[shift_field] = self.inputs_data[shift_field].shift(shift_period).dropna()
             self.inputs_data_binary = self.inputs_data_binary[:self.inputs_data.shape[0] - shift_period]
@@ -814,13 +829,13 @@ class StockPredictor:
         return model.predict(df_new_instance)
 
 
-    def getBinaryStratExploreResults(self, profit_field="pctChange_close",
+    def getBinaryStratExploreResults(self, profit_field="isUp_close", #"pctChange_close",
                                      strat_indicator="rules_binary_features_sum",
                                      score_field="MedianProfit",
                                      shift_fields=["pctChange_close", "pctChange_low", "pctChange_high"],
                                      shift_period=-1):
         for f in shift_fields:
-            self.shiftData(f, shift_period)
+            self.shiftAndSplitData(f, shift_period)
         strat_results = {}
         for n in set(self.inputs_data[strat_indicator]):
             nn = str(n)
@@ -907,9 +922,10 @@ class StockPredictor:
         self.appendResults(best_strat)
         self.appendResults(worst_strat)
 
-    # ticker="^GSPC" #TDOC #MBRX #WISH
-voter1 = StockPredictor(ticker="^GSPC", predict_field="isUp_close", \
-                        shift_n_periods=-1, displayChart=True, debug=True)
+    # ticker="^GSPC" #TDOC #MBRX #WISH #JPM
+    #\ #isUp_close pctChange_close
+voter1 = StockPredictor(ticker="^GSPC", predict_field="isUp_close",
+                        shift_n_periods=-1,  periods_back_test=500, rulePct=0.35, displayChart=True, debug=True)
 #tickers = ["AI", "FSLY", "TDOC", "JPM", "KGC", "GDX", "NET", "^GSPC", "^VIX", "^DJI", "GLD"]
 # for t in tickers:
 #     StockPredictor(ticker=t, predict_field="isUp_close", shift_n_periods=-1, displayChart=False)

@@ -17,9 +17,19 @@ def isUp(df_data, field):
     df_data['diff_' + '%s' % field] = df_data[field].pct_change() > 0 #1 True #diff(1) > 0 #-0.5 #0.333 #0 #tmp fields
     df_data.dropna(inplace=True)
     df_data['isUp_' + '%s' % field] = [weight if x > 0 else 0 for x in df_data['diff_' + '%s' % field]]
+    #df_data['isDown_' + '%s' % field] = [weight if x < 0 else 0 for x in df_data['diff_' + '%s' % field]]
+
     #df_data.drop('diff_' + '%s' % field, inplace=True) #dropped later -check if required
     #df_data.dropna(inplace=True)
     return df_data
+
+
+#use stored preproc indicator's values #todo cross by PCT for regression/rules
+def isUp2(df_data, ind1name, ind2name): #todo 2-5 cross (5 indicators cross, 5 values (0,1) cross for UP|DOWN level cross for regression - crosses 5-10-20d outliers -> rules?)
+    indName = f"isUp2_{ind1name}_{ind2name}"
+    df_data[indName] = df_data[ind1name] >= df_data[ind2name]
+    return df_data
+
 
 def pctChange1p(df_data, field):
     df_data['pctChange_%s' % field] = df_data[field].pct_change() * 100
@@ -51,21 +61,23 @@ def pctChangePriceByPeriod(df_data, period): #todo to continue
 def isHighLowFromPeriodBack(df_data, pct, period): #todo to continue - duplicate above?
     period_pct_change_high = []
     period_pct_change_low = []
+    #period_pct_range = []
     for x in range(df_data.shape[0]):
         try:
-            period_start = x + 1 - period
-            period_end = x + 1
-            period_pct_high = max(df_data.iloc[x - period: period_end]["high"])
-            period_pct_low = min(df_data.iloc[x - period: period_end]["low"])
-            period_change_pct_high = (period_pct_high / df_data.iloc[period_start]["adjclose"] - 1) * 100
-            period_change_pct_low = (1 - period_pct_low / df_data.iloc[period_start]["adjclose"]) * 100
-            period_pct_change_high.append(period_change_pct_high)
-            period_pct_change_low.append(period_change_pct_low)
+            period_start = x-period #x + 1 - period
+            period_end = x #x + 1
+            period_high = max(df_data.iloc[x - period: period_end]["high"])
+            period_low = min(df_data.iloc[x - period: period_end]["low"])
+            period_change_pct_high = (period_high / df_data.iloc[period_start]["adjclose"] - 1) * 100
+            period_change_pct_low = (1 - period_low / df_data.iloc[period_start]["adjclose"]) * 100
+            period_pct_change_high.append(period_change_pct_high) if df_data.iloc[x] == period_high else None
+            period_pct_change_low.append(period_change_pct_low) if df_data.iloc[x] == period_low else None
+            #period_pct_range.append(period_change_pct_low+period_change_pct_high)
         except:
             period_pct_change_high.append(None)
             period_pct_change_low.append(None)
-    df_data['%spctChange-isHigh_%speriods_back' % (pct, period)] = [1 if (not x is None and x >= pct) else 0 for x in period_pct_change_high]
-    df_data['%spctChange-isLow_%speriods_back' % (pct, period)] = [1 if (not x is None and x >= pct) else 0 for x in period_pct_change_low]
+    df_data['is_%spctChange_isHigh_%speriods_back' % (pct, period)] = [1 if (not x is None and x >= pct) else 0 for x in period_pct_change_high]
+    df_data['is_%spctChange_isLow_%speriods_back' % (pct, period)] = [1 if (not x is None and x >= pct) else 0 for x in period_pct_change_low]
     return df_data
 
 def isHighLowToPeriodForward(df_data, pct, period): #todo to continue
@@ -134,8 +146,10 @@ def volatility(df_data, field, period): #data asc - oldest first
     return df_data
 
 def rsi(df_data, field="close", period=14):
-    df_data['rsi_{}_{}'.format(period, field)] = RSI(df_data[field], period)
+    df_data['rsi_{}_{}'.format(period, field)] = RSI(df_data[field].dropna(), period)
     #rsi = RSI(price['adjclose']) #(close) #, timeperiod=14)
+    df_data['isRsi_met80_{}_{}'.format(period, field)] = [1 if x >= 80 else 0 for x in df_data['rsi_{}_{}'.format(period, field)]]
+    df_data['isRsi_let20_{}_{}'.format(period, field)] = [1 if x <= 20 else 0 for x in df_data['rsi_{}_{}'.format(period, field)]]
     return df_data
 
 ###########
